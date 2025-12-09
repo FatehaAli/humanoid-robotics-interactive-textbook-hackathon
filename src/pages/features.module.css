@@ -1,0 +1,100 @@
+/* --- Hero Section --- */
+.heroSection {
+  padding: 5rem 2rem;
+  text-align: center;
+  background: linear-gradient(135deg, #1b1a55, #535c91, #9290c3);
+  color: white;
+  border-radius: 1rem;
+  margin-bottom: 3rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.title {
+  font-size: 3rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  opacity: 0.9;
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* --- Features Grid --- */
+.featuresSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2rem;
+  padding: 2rem;
+}
+
+
+
+/* --- Glassy Tilt Cards --- */
+.featureCard {
+  padding: 1.5rem;
+  border-radius: 18px;
+  border: 2px solid;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transform: rotateX(var(--my, 0deg)) rotateY(var(--mx, 0deg));
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.3s ease;
+  cursor: pointer;
+}
+
+.featureCard:hover {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Inner card content */
+.cardInner h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.cardInner p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ifm-font-color-base); /* theme-aware color */
+}
+
+.cardInner h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary); /* optional: theme primary color */
+}
+
+
+.cardInner .button {
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .featuresSection {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .heroSection {
+    padding: 3rem 1rem;
+  }
+
+  .title {
+    font-size: 2rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+}

@@ -1,0 +1,161 @@
+---
+title: "Spawning Humanoid Robots with USD in Isaac Sim"
+sidebar_label: "Spawning Humanoid with USD"
+sidebar_position: 2
+description: "Learn to create and spawn humanoid robot models using USD in Isaac Sim for advanced simulation"
+keywords: [usd, humanoid, robot, isaac sim, spawning, assets]
+---
+
+# Spawning Humanoid Robots with USD in Isaac Sim
+
+## Introduction
+
+In this lesson, you'll learn to create and spawn humanoid robot models in Isaac Sim using Universal Scene Description (USD). USD is the standard format for 3D scenes in Isaac Sim, providing a powerful way to define complex robot models with realistic physics properties and visual appearance.
+
+## USD Fundamentals for Robotics
+
+### USD Structure
+USD organizes 3D content in a hierarchical structure:
+- **Stage**: The top-level container for all scene content
+- **Prims**: Basic scene objects that can contain other prims
+- **Properties**: Attributes that define prim characteristics
+- **Relationships**: Connections between prims
+
+### Robot Definition in USD
+A robot in USD typically includes:
+- **Links**: Rigid bodies connected by joints
+- **Joints**: Constraints that define movement between links
+- **Materials**: Visual appearance properties
+- **Physics**: Mass, friction, and collision properties
+
+## Hands-On Lab: Creating and Spawning a Humanoid Robot
+
+Let's create a USD file for a humanoid robot and spawn it in Isaac Sim.
+
+### Humanoid Robot USD Definition
+
+```usd title="code-examples/isaac-sim-module/humanoid_robot.usd"
+#usda 1.0
+
+def Xform "humanoid_robot"
+{
+    def Xform "base_link"
+    {
+        def Sphere "visual"
+        {
+            double radius = 0.15
+            rel material:binding = </World/Looks/robot_blue_material>
+        }
+
+        def Sphere "collision"
+        {
+            double radius = 0.15
+        }
+
+        def PhysicsMass "mass"
+        {
+            float mass = 10.0
+        }
+    }
+
+    def Xform "head"
+    {
+        add xformOp:transform = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.25, 1.0)
+        def Sphere "visual"
+        {
+            double radius = 0.1
+            rel material:binding = </World/Looks/robot_white_material>
+        }
+    }
+
+    def Xform "left_arm"
+    {
+        add xformOp:transform = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.15, 0.0, 0.1, 1.0)
+        def Capsule "visual"
+        {
+            double radius = 0.05
+            double height = 0.3
+            rel material:binding = </World/Looks/robot_red_material>
+        }
+    }
+
+    def Xform "right_arm"
+    {
+        add xformOp:transform = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -0.15, 0.0, 0.1, 1.0)
+        def Capsule "visual"
+        {
+            double radius = 0.05
+            double height = 0.3
+            rel material:binding = </World/Looks/robot_red_material>
+        }
+    }
+
+    def Xform "left_leg"
+    {
+        add xformOp:transform = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.07, 0.0, -0.25, 1.0)
+        def Capsule "visual"
+        {
+            double radius = 0.06
+            double height = 0.4
+            rel material:binding = </World/Looks/robot_green_material>
+        }
+    }
+
+    def Xform "right_leg"
+    {
+        add xformOp:transform = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -0.07, 0.0, -0.25, 1.0)
+        def Capsule "visual"
+        {
+            double radius = 0.06
+            double height = 0.4
+            rel material:binding = </World/Looks/robot_green_material>
+        }
+    }
+}
+
+def Scope "Looks"
+{
+    def Material "robot_blue_material"
+    {
+        def Shader "PreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.0, 0.0, 1.0)
+            float inputs:metallic = 0.0
+            float inputs:roughness = 0.5
+        }
+    }
+
+    def Material "robot_white_material"
+    {
+        def Shader "PreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (1.0, 1.0, 1.0)
+            float inputs:metallic = 0.0
+            float inputs:roughness = 0.5
+        }
+    }
+
+    def Material "robot_red_material"
+    {
+        def Shader "PreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (1.0, 0.0, 0.0)
+            float inputs:metallic = 0.0
+            float inputs:roughness = 0.5
+        }
+    }
+
+    def Material "robot_green_material"
+    {
+        def Shader "PreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.0, 1.0, 0.0)
+            float inputs:metallic = 0.0
+            float inputs:roughness = 0.5
+        }
+    }
+}

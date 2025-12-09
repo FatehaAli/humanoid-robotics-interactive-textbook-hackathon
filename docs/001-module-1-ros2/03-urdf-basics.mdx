@@ -1,0 +1,569 @@
+---
+title: "URDF Basics for Humanoid Models"
+sidebar_label: "URDF Basics"
+sidebar_position: 3
+description: "Learn to define robot models using URDF (Unified Robot Description Format) for humanoid robots"
+keywords: [urdf, robot model, xml, humanoid, robotics]
+---
+
+# URDF Basics for Humanoid Models
+
+## Introduction
+
+URDF (Unified Robot Description Format) is XML-based format used in ROS to describe robot models. It defines the physical and visual properties of a robot including its links (parts), joints (connections), and inertial properties. For humanoid robots, URDF is essential for simulation, visualization, and control.
+
+## Understanding URDF Structure
+
+A URDF file describes a robot as a collection of rigid bodies (links) connected by joints. The basic structure includes:
+
+- **Links**: Represent rigid parts of the robot (body, arms, legs, head)
+- **Joints**: Define how links connect and move relative to each other
+- **Visual**: Define how the robot appears in simulation
+- **Collision**: Define collision properties for physics simulation
+- **Inertial**: Define mass and inertia properties for dynamics
+
+## Hands-On Lab: Creating a Simple Humanoid URDF
+
+Let's create a basic humanoid model with a torso, head, two arms, and two legs.
+
+### Basic Humanoid URDF Model
+
+```xml title="code-examples/ros2-module/simple_humanoid.urdf"
+<?xml version="1.0"?>
+<robot name="simple_humanoid">
+  <!-- Base link -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.3 0.2 0.5"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0 1 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.3 0.2 0.5"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="10.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <!-- Head -->
+  <link name="head">
+    <visual>
+      <geometry>
+        <sphere radius="0.1"/>
+      </geometry>
+      <material name="white">
+        <color rgba="1 1 1 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="neck_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="head"/>
+    <origin xyz="0 0 0.35"/>
+  </joint>
+
+  <!-- Left Arm -->
+  <link name="left_upper_arm">
+    <visual>
+      <geometry>
+        <cylinder length="0.3" radius="0.05"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.3" radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="left_shoulder_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="left_upper_arm"/>
+    <origin xyz="0.15 0 0.1" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <link name="left_lower_arm">
+    <visual>
+      <geometry>
+        <cylinder length="0.3" radius="0.04"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.3" radius="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="left_elbow_joint" type="revolute">
+    <parent link="left_upper_arm"/>
+    <child link="left_lower_arm"/>
+    <origin xyz="0 0 -0.3" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <!-- Right Arm -->
+  <link name="right_upper_arm">
+    <visual>
+      <geometry>
+        <cylinder length="0.3" radius="0.05"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.3" radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="right_shoulder_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="right_upper_arm"/>
+    <origin xyz="-0.15 0 0.1" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <link name="right_lower_arm">
+    <visual>
+      <geometry>
+        <cylinder length="0.3" radius="0.04"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.3" radius="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="right_elbow_joint" type="revolute">
+    <parent link="right_upper_arm"/>
+    <child link="right_lower_arm"/>
+    <origin xyz="0 0 -0.3" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <!-- Left Leg -->
+  <link name="left_upper_leg">
+    <visual>
+      <geometry>
+        <cylinder length="0.4" radius="0.06"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.4" radius="0.06"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="2.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="left_hip_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="left_upper_leg"/>
+    <origin xyz="0.07 0 -0.25" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <link name="left_lower_leg">
+    <visual>
+      <geometry>
+        <cylinder length="0.4" radius="0.05"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.4" radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="left_knee_joint" type="revolute">
+    <parent link="left_upper_leg"/>
+    <child link="left_lower_leg"/>
+    <origin xyz="0 0 -0.4" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <!-- Right Leg -->
+  <link name="right_upper_leg">
+    <visual>
+      <geometry>
+        <cylinder length="0.4" radius="0.06"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.4" radius="0.06"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="2.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="right_hip_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="right_upper_leg"/>
+    <origin xyz="-0.07 0 -0.25" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+
+  <link name="right_lower_leg">
+    <visual>
+      <geometry>
+        <cylinder length="0.4" radius="0.05"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 0.8"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.4" radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="right_knee_joint" type="revolute">
+    <parent link="right_upper_leg"/>
+    <child link="right_lower_leg"/>
+    <origin xyz="0 0 -0.4" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="1"/>
+  </joint>
+</robot>
+```
+
+### URDF Validation Script
+
+```python title="code-examples/ros2-module/urdf_validator.py"
+#!/usr/bin/env python3
+import xml.etree.ElementTree as ET
+import sys
+
+def validate_urdf(urdf_path):
+    """Validate URDF file structure"""
+    try:
+        tree = ET.parse(urdf_path)
+        root = tree.getroot()
+
+        if root.tag != 'robot':
+            print(f"ERROR: Root element is not 'robot', found '{root.tag}'")
+            return False
+
+        robot_name = root.get('name')
+        if not robot_name:
+            print("ERROR: Robot element missing 'name' attribute")
+            return False
+
+        # Check for at least one link
+        links = root.findall('link')
+        if len(links) == 0:
+            print("ERROR: No links found in URDF")
+            return False
+
+        # Check for joints if there are multiple links
+        joints = root.findall('joint')
+        if len(links) > 1 and len(joints) == 0:
+            print("WARNING: Multiple links found but no joints - robot will be static")
+
+        print(f"SUCCESS: Valid URDF '{robot_name}' with {len(links)} links and {len(joints)} joints")
+        return True
+
+    except ET.ParseError as e:
+        print(f"ERROR: Invalid XML in URDF file - {e}")
+        return False
+    except FileNotFoundError:
+        print(f"ERROR: URDF file not found - {urdf_path}")
+        return False
+    except Exception as e:
+        print(f"ERROR: Unexpected error validating URDF - {e}")
+        return False
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python urdf_validator.py <urdf_file>")
+        sys.exit(1)
+
+    urdf_path = sys.argv[1]
+    success = validate_urdf(urdf_path)
+    sys.exit(0 if success else 1)
+
+if __name__ == '__main__':
+    main()
+```
+
+### URDF to RViz Visualization Script
+
+```python title="code-examples/ros2-module/urdf_visualizer.py"
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Header
+import math
+import time
+
+class URDFVisualizer(Node):
+    def __init__(self):
+        super().__init__('urdf_visualizer')
+
+        # Publisher for joint states
+        self.joint_pub = self.create_publisher(JointState, 'joint_states', 10)
+
+        # Timer for publishing joint states
+        self.timer = self.create_timer(0.1, self.publish_joint_states)
+
+        # Joint names for our simple humanoid
+        self.joint_names = [
+            'left_shoulder_joint', 'left_elbow_joint',
+            'right_shoulder_joint', 'right_elbow_joint',
+            'left_hip_joint', 'left_knee_joint',
+            'right_hip_joint', 'right_knee_joint'
+        ]
+
+        self.get_logger().info('URDF Visualizer initialized')
+
+    def publish_joint_states(self):
+        """Publish dynamic joint states for visualization"""
+        msg = JointState()
+        msg.header = Header()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = self.joint_names
+
+        # Create oscillating joint positions for animation
+        current_time = self.get_clock().now().nanoseconds / 1e9
+        positions = []
+
+        for i, joint_name in enumerate(self.joint_names):
+            # Create different oscillation patterns for each joint
+            angle = math.sin(current_time + i) * 0.5
+            positions.append(angle)
+
+        msg.position = positions
+        msg.velocity = [0.0] * len(positions)
+        msg.effort = [0.0] * len(positions)
+
+        self.joint_pub.publish(msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    visualizer = URDFVisualizer()
+
+    try:
+        rclpy.spin(visualizer)
+    except KeyboardInterrupt:
+        visualizer.get_logger().info('Shutting down URDF Visualizer')
+    finally:
+        visualizer.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Using URDF with ROS2 and Simulation
+
+### Launch File for URDF Visualization
+
+```python title="code-examples/ros2-module/urdf_visualization_launch.py"
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
+
+def generate_launch_description():
+    # Declare launch arguments
+    urdf_path_arg = DeclareLaunchArgument(
+        'urdf_path',
+        default_value='code-examples/ros2-module/simple_humanoid.urdf',
+        description='Path to the URDF file'
+    )
+
+    # Get URDF path
+    urdf_path = LaunchConfiguration('urdf_path')
+
+    # Robot State Publisher node
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        parameters=[{
+            'robot_description': open(urdf_path.perform({})).read()
+        }]
+    )
+
+    # Joint State Publisher node
+    joint_state_publisher = Node(
+        package='joint_state_publisher',
+        executable='joint_state_publisher',
+        name='joint_state_publisher',
+        parameters=[{
+            'rate': 50,
+            'use_gui': False
+        }]
+    )
+
+    # RViz2 node
+    rviz2 = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', 'rviz2_config.rviz'],
+        output='screen'
+    )
+
+    # Our custom visualizer
+    urdf_visualizer = Node(
+        package='demo_nodes_py',  # Using demo package for simplicity
+        executable='listener',    # Placeholder - would be our visualizer
+        name='urdf_visualizer'
+    )
+
+    return LaunchDescription([
+        urdf_path_arg,
+        robot_state_publisher,
+        joint_state_publisher,
+        rviz2,
+        urdf_visualizer
+    ])
+```
+
+## Loading and Visualizing the URDF
+
+1. **Validate the URDF**:
+```bash
+python3 code-examples/ros2-module/urdf_validator.py code-examples/ros2-module/simple_humanoid.urdf
+```
+
+2. **Visualize in RViz2**:
+```bash
+# Terminal 1: Start robot state publisher
+ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_description:="$(cat code-examples/ros2-module/simple_humanoid.urdf)"
+
+# Terminal 2: Start joint state publisher
+ros2 run joint_state_publisher joint_state_publisher
+
+# Terminal 3: Start RViz2
+rviz2
+```
+
+In RViz2, add a RobotModel display and set the fixed frame to `base_link`.
+
+## Advanced URDF Features
+
+### Transmission Elements
+For controlling joints with actuators:
+
+```xml
+<transmission name="left_shoulder_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="left_shoulder_joint">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="left_shoulder_motor">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+```
+
+### Gazebo-Specific Elements
+For simulation in Gazebo:
+
+```xml
+<gazebo reference="base_link">
+  <material>Gazebo/Blue</material>
+  <mu1>0.2</mu1>
+  <mu2>0.2</mu2>
+</gazebo>
+```
+
+## Key Takeaways
+
+- URDF describes robot structure using links, joints, and properties
+- Links represent rigid bodies, joints define connections and movement
+- Visual, collision, and inertial properties define simulation behavior
+- URDF files are essential for robot simulation and visualization
+- Robot State Publisher node broadcasts transforms for visualization
+
+## Next Steps
+
+With the fundamentals of ROS2 covered, we'll move to the Gazebo Simulation module where you'll learn to create physics-based simulations for your humanoid robots.

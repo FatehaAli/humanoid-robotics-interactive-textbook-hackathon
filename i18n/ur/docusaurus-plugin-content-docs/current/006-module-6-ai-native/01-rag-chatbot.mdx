@@ -1,0 +1,278 @@
+---
+title: "RAG Chatbot: FastAPI + Qdrant + Neon for Robotics Q&A"
+sidebar_label: "RAG Chatbot"
+sidebar_position: 1
+description: "Build a Retrieval-Augmented Generation chatbot for robotics Q&A using FastAPI, Qdrant, and Neon"
+keywords: [rag, chatbot, fastapi, qdrant, neon, ai, robotics]
+---
+
+# RAG Chatbot: FastAPI + Qdrant + Neon for Robotics Q&A
+
+## Introduction
+
+Retrieval-Augmented Generation (RAG) enhances language models by providing them with relevant context from a knowledge base. In this lesson, you'll build a RAG chatbot specifically for robotics Q&A using FastAPI for the web framework, Qdrant for vector storage, and Neon for metadata storage.
+
+## Key Concepts
+
+### RAG Architecture
+The RAG system consists of:
+- **Indexing Pipeline**: Converts documents to vector embeddings and stores them
+- **Retrieval Component**: Finds relevant documents based on query similarity
+- **Generation Component**: Uses LLM to generate answers based on retrieved context
+
+### Vector Databases
+Qdrant provides:
+- **Similarity Search**: Find documents similar to a query
+- **Scalable Storage**: Handle large document collections
+- **Filtering**: Retrieve documents based on metadata
+- **Real-time Updates**: Add/remove documents dynamically
+
+### Database Integration
+Neon provides:
+- **Metadata Storage**: Store document metadata, user information, etc.
+- **Relational Queries**: Complex queries across multiple entities
+- **ACID Transactions**: Consistent data operations
+
+## Hands-On Lab: RAG Chatbot Implementation
+
+Let's create a complete RAG system for robotics Q&A.
+
+### RAG Service with FastAPI
+
+```python title="code-examples/ai-native-module/rag_service/rag_server.py"
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
+from typing import List, Optional
+import openai
+from openai import OpenAI
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from sentence_transformers import SentenceTransformer
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import os
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Robotics RAG Chatbot", version="1.0.0")
+
+# Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+NEON_DATABASE_URL = os.getenv("NEON_DATABASE_URL")
+
+# Initialize clients
+if OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    logger.warning("OPENAI_API_KEY not set, using mock responses")
+
+# Qdrant client (assuming local instance for demo)
+qdrant_client = QdrantClient(host="localhost", port=6333)
+
+# Sentence transformer for embeddings
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Database connection
+def get_db_connection():
+    if not NEON_DATABASE_URL:
+        logger.warning("NEON_DATABASE_URL not set, using mock database")
+        return None
+    return psycopg2.connect(NEON_DATABASE_URL, cursor_factory=RealDictCursor)
+
+# Define data models
+class Question(BaseModel):
+    question: str
+    max_contexts: int = 5
+    temperature: float = 0.7
+
+class RAGResponse(BaseModel):
+    question: str
+    answer: str
+    sources: List[str]
+    confidence: float
+
+class Document(BaseModel):
+    id: str
+    content: str
+    metadata: dict = {}
+
+# Initialize Qdrant collection for robotics content
+def init_qdrant_collection():
+    try:
+        # Check if collection exists
+        qdrant_client.get_collection("robotics_content")
+        logger.info("Robotics content collection already exists")
+    except:
+        # Create collection if it doesn't exist
+        qdrant_client.create_collection(
+            collection_name="robotics_content",
+            vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE),
+        )
+        logger.info("Created new robotics content collection")
+
+        # Add sample robotics documents
+        sample_docs = [
+            {
+                "id": "ros2_basics_1",
+                "content": "ROS2 (Robot Operating System 2) is a flexible framework for writing robot software. It provides a collection of tools, libraries, and conventions that aim to simplify the task of creating complex robotic behavior across a heterogeneous cluster of computers.",
+                "metadata": {"topic": "ROS2", "difficulty": "beginner", "source": "ros2_docs"}
+            },
+            {
+                "id": "gazebo_simulation_1",
+                "content": "Gazebo is a 3D simulation environment for autonomous robots. It provides realistic physics simulation, high-quality graphics, and convenient programmatic interfaces. Gazebo simulates multiple robots in complex indoor and outdoor environments.",
+                "metadata": {"topic": "Gazebo", "difficulty": "intermediate", "source": "gazebo_docs"}
+            },
+            {
+                "id": "isaac_sim_1",
+                "content": "Isaac Sim is NVIDIA's reference application for physically accurate simulation of robotic systems. It provides photorealistic rendering, advanced physics simulation, and synthetic data generation capabilities for training AI models.",
+                "metadata": {"topic": "Isaac Sim", "difficulty": "advanced", "source": "isaac_sim_docs"}
+            },
+            {
+                "id": "vlm_pipeline_1",
+                "content": "Vision-Language-Action (VLA) models combine visual perception, natural language understanding, and action execution. These models enable robots to understand and respond to natural language commands by perceiving their environment.",
+                "metadata": {"topic": "VLA", "difficulty": "advanced", "source": "vla_research"}
+            }
+        ]
+
+        # Add sample documents to Qdrant
+        for doc in sample_docs:
+            vector = embedder.encode(doc["content"]).tolist()
+            qdrant_client.upsert(
+                collection_name="robotics_content",
+                points=[
+                    models.PointStruct(
+                        id=hash(doc["id"]) % (10**9),  # Simple hash for ID
+                        vector=vector,
+                        payload={
+                            "content": doc["content"],
+                            "metadata": doc["metadata"]
+                        }
+                    )
+                ]
+            )
+
+        logger.info(f"Added {len(sample_docs)} sample documents to Qdrant")
+
+# Initialize on startup
+@app.on_event("startup")
+def startup_event():
+    init_qdrant_collection()
+
+@app.post("/api/rag/query", response_model=RAGResponse)
+async def query_rag(question: Question):
+    """
+    Query the RAG system with a question and get an answer with sources.
+    """
+    try:
+        # Generate embedding for the question
+        question_embedding = embedder.encode(question.question).tolist()
+
+        # Search for similar documents in Qdrant
+        search_results = qdrant_client.search(
+            collection_name="robotics_content",
+            query_vector=question_embedding,
+            limit=question.max_contexts,
+            with_payload=True
+        )
+
+        if not search_results:
+            raise HTTPException(status_code=404, detail="No relevant documents found")
+
+        # Extract content from search results
+        contexts = []
+        sources = []
+        for result in search_results:
+            contexts.append(result.payload["content"])
+            sources.append(result.payload["metadata"].get("source", "unknown"))
+
+        # Prepare context for LLM
+        context_text = "\n\n".join(contexts)
+
+        # Generate response using OpenAI (or mock if no API key)
+        if OPENAI_API_KEY:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful robotics assistant. Answer questions based on the provided context. If the context doesn't contain enough information, say so."},
+                    {"role": "user", "content": f"Context: {context_text}\n\nQuestion: {question.question}\n\nPlease provide a helpful answer based on the context."}
+                ],
+                temperature=question.temperature
+            )
+            answer = response.choices[0].message.content
+        else:
+            # Mock response when no API key is available
+            answer = f"Based on the context, the answer to '{question.question}' is related to robotics concepts. [MOCK RESPONSE - API key not configured]"
+
+        # Calculate confidence based on similarity scores
+        avg_similarity = sum([result.score for result in search_results]) / len(search_results)
+        confidence = min(avg_similarity, 1.0)  # Clamp to 0-1 range
+
+        # Store query in database for analytics (if available)
+        try:
+            conn = get_db_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO queries (question, answer, sources, timestamp, confidence)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (question.question, answer, str(sources), datetime.now(), confidence))
+                    conn.commit()
+        except Exception as e:
+            logger.error(f"Error storing query in database: {e}")
+
+        return RAGResponse(
+            question=question.question,
+            answer=answer,
+            sources=sources,
+            confidence=confidence
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing RAG query: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+@app.post("/api/rag/index")
+async def index_document(document: Document):
+    """
+    Add a document to the RAG system.
+    """
+    try:
+        # Generate embedding for the document content
+        embedding = embedder.encode(document.content).tolist()
+
+        # Add to Qdrant
+        qdrant_client.upsert(
+            collection_name="robotics_content",
+            points=[
+                models.PointStruct(
+                    id=hash(document.id) % (10**9),  # Simple hash for ID
+                    vector=embedding,
+                    payload={
+                        "content": document.content,
+                        "metadata": document.metadata
+                    }
+                )
+            ]
+        )
+
+        logger.info(f"Indexed document: {document.id}")
+        return {"status": "success", "document_id": document.id}
+
+    except Exception as e:
+        logger.error(f"Error indexing document: {e}")
+        raise HTTPException(status_code=500, detail=f"Error indexing document: {str(e)}")
+
+@app.get("/api/health")
+async def health_check():
+    """
+    Health check endpoint.
+    """
+    return {"status": "healthy", "service": "RAG Chatbot"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,0 +1,120 @@
+.heroBanner {
+  padding: 5rem 0;
+  text-align: center;
+  background: linear-gradient(135deg, #1b1a55, #535c91, #9290c3);
+  color: white;
+}
+
+.heroTitle {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.heroSubtitle {
+  font-size: 1.25rem;
+  opacity: 0.9;
+  margin-top: 1rem;
+}
+
+.heroButtons {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+ /* what this textbook covers section  */
+ /* --- What This Textbook Covers --- */
+.coverageSection {
+  text-align: center;
+  padding: 4rem 2rem;
+  background-color: var(--ifm-background-surface);
+  border-radius: 1rem;
+  margin-bottom: 3rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.coverageHeading {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--ifm-color-primary);
+}
+
+.coverageDescription {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  max-width: 800px;
+  margin: 0 auto;
+  color: var(--ifm-font-color-base);
+  opacity: 0.9;
+}
+/* ------------- */
+.featuresSection {
+  padding: 4rem 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2rem;
+}
+/* --- Features Section Heading --- */
+.featuresHeading {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0rem;
+  color: var(--ifm-color-primary);
+}
+
+.featureCard {
+  padding: 1.5rem;
+  border-radius: 18px;
+  border: 2px solid;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+
+/* -------------------------------------- */
+/*      MOBILE RESPONSIVE HERO SECTION    */
+/* -------------------------------------- */
+@media (max-width: 600px) {
+  .heroBanner {
+    padding: 3.5rem 1.2rem;
+    text-align: left;
+  }
+
+  .heroTitle {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+
+  .heroSubtitle {
+    font-size: 1rem;
+    line-height: 1.45;
+    margin-top: 0.8rem;
+    opacity: 0.85;
+  }
+
+  .heroButtons {
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: stretch;
+  }
+
+  .heroButtons .button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Extra-small phones */
+@media (max-width: 380px) {
+  .heroTitle {
+    font-size: 1.7rem;
+  }
+
+  .heroSubtitle {
+    font-size: 0.9rem;
+  }
+}

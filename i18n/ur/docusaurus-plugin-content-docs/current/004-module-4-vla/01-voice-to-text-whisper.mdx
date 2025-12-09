@@ -1,0 +1,279 @@
+---
+title: "Voice-to-Text with Whisper for Robot Control"
+sidebar_label: "Voice-to-Text with Whisper"
+sidebar_position: 1
+description: "Learn to use OpenAI's Whisper for speech-to-text conversion in robotic applications"
+keywords: [whisper, speech-to-text, voice, robot control, audio]
+---
+
+# Voice-to-Text with Whisper for Robot Control
+
+## Introduction
+
+Voice interaction provides a natural and intuitive way to control robots. In this lesson, you'll learn to use OpenAI's Whisper model for converting speech to text, which can then be processed by your robotic system. Whisper is particularly powerful for robotics applications due to its robustness to background noise and multiple languages.
+
+## Key Concepts
+
+### Speech Recognition Pipeline
+The voice-to-text process involves:
+- **Audio Capture**: Recording voice commands from a microphone
+- **Preprocessing**: Cleaning and preparing audio for processing
+- **Transcription**: Converting audio to text using Whisper
+- **Post-processing**: Cleaning and formatting the transcribed text
+
+### Whisper for Robotics
+Whisper is well-suited for robotics because:
+- **Robustness**: Handles background noise common in robotic environments
+- **Multi-language**: Supports multiple languages for global deployment
+- **Real-time Capabilities**: Can process audio in near real-time
+- **Open Source**: Can be deployed locally without API dependencies
+
+## Hands-On Lab: Implementing Voice-to-Text
+
+Let's create a Python script that captures audio from a microphone and transcribes it using Whisper.
+
+### Audio Capture and Whisper Transcription
+
+```python title="code-examples/vla-module/whisper_transcriber.py"
+import pyaudio
+import wave
+import numpy as np
+import openai
+import os
+from openai import OpenAI
+import time
+import threading
+import queue
+
+class WhisperTranscriber:
+    def __init__(self, api_key=None, model="whisper-1"):
+        """
+        Initialize Whisper transcriber
+        :param api_key: OpenAI API key (if using API)
+        :param model: Whisper model to use
+        """
+        if api_key:
+            self.client = OpenAI(api_key=api_key)
+        else:
+            # If no API key provided, we'll use a local model simulation
+            print("API key not provided. Using local model simulation...")
+            self.client = None
+
+        self.model = model
+        self.is_recording = False
+
+        # Audio parameters
+        self.chunk = 1024
+        self.format = pyaudio.paInt16
+        self.channels = 1
+        self.rate = 16000
+        self.record_seconds = 5
+
+        # Initialize PyAudio
+        self.audio = pyaudio.PyAudio()
+
+    def record_audio(self, filename="temp_audio.wav", record_duration=5):
+        """
+        Record audio from microphone and save to file
+        :param filename: Output audio file name
+        :param record_duration: Duration to record in seconds
+        """
+        print(f"Recording for {record_duration} seconds...")
+
+        # Open stream
+        stream = self.audio.open(
+            format=self.format,
+            channels=self.channels,
+            rate=self.rate,
+            input=True,
+            frames_per_buffer=self.chunk
+        )
+
+        frames = []
+
+        for i in range(0, int(self.rate / self.chunk * record_duration)):
+            data = stream.read(self.chunk)
+            frames.append(data)
+
+        print("Finished recording")
+
+        # Stop and close stream
+        stream.stop_stream()
+        stream.close()
+
+        # Save recorded data as WAV file
+        wf = wave.open(filename, 'wb')
+        wf.setnchannels(self.channels)
+        wf.setsampwidth(self.audio.get_sample_size(self.format))
+        wf.setframerate(self.rate)
+        wf.writeframes(b''.join(frames))
+        wf.close()
+
+        return filename
+
+    def transcribe_audio_api(self, audio_file_path):
+        """
+        Transcribe audio using OpenAI Whisper API
+        :param audio_file_path: Path to audio file to transcribe
+        :return: Transcribed text
+        """
+        if not self.client:
+            raise ValueError("OpenAI client not initialized")
+
+        try:
+            with open(audio_file_path, "rb") as audio_file:
+                transcript = self.client.audio.transcriptions.create(
+                    model=self.model,
+                    file=audio_file
+                )
+            return transcript.text
+        except Exception as e:
+            print(f"Error transcribing audio: {e}")
+            return ""
+
+    def simulate_transcription(self, audio_file_path):
+        """
+        Simulate transcription for local deployment
+        :param audio_file_path: Path to audio file
+        :return: Simulated transcription
+        """
+        print("Simulating transcription (local model)...")
+        # In a real implementation, this would use a local Whisper model
+        # For simulation, we'll return some example text
+        simulated_commands = [
+            "move forward one meter",
+            "turn left ninety degrees",
+            "stop the robot",
+            "raise your right arm",
+            "take a picture",
+            "find the red cube",
+            "navigate to the kitchen"
+        ]
+        import random
+        return random.choice(simulated_commands)
+
+    def transcribe_from_microphone(self):
+        """
+        Complete pipeline: record audio from microphone and transcribe
+        :return: Transcribed text
+        """
+        # Record audio
+        audio_file = "temp_recording.wav"
+        self.record_audio(audio_file, record_duration=5)
+
+        # Transcribe based on availability
+        if self.client:
+            text = self.transcribe_audio_api(audio_file)
+        else:
+            text = self.simulate_transcription(audio_file)
+
+        # Clean up temporary file
+        if os.path.exists(audio_file):
+            os.remove(audio_file)
+
+        return text
+
+    def continuous_listening(self, callback_func, silence_threshold=0.01, silence_duration=2):
+        """
+        Continuously listen for speech and call callback when detected
+        :param callback_func: Function to call with transcribed text
+        :param silence_threshold: Audio level threshold for silence detection
+        :param silence_duration: Duration of silence to trigger transcription
+        """
+        stream = self.audio.open(
+            format=self.format,
+            channels=self.channels,
+            rate=self.rate,
+            input=True,
+            frames_per_buffer=self.chunk
+        )
+
+        print("Listening... Press Ctrl+C to stop")
+
+        frames = []
+        silent_frames = 0
+        total_frames = 0
+
+        try:
+            while True:
+                data = stream.read(self.chunk)
+                frames.append(data)
+                total_frames += 1
+
+                # Convert to numpy array for analysis
+                audio_data = np.frombuffer(data, dtype=np.int16)
+                audio_level = np.abs(audio_data).mean()
+
+                if audio_level < silence_threshold * 32767:  # Normalize to max int16 value
+                    silent_frames += 1
+                else:
+                    silent_frames = 0  # Reset counter when audio detected
+
+                # If we have enough silence frames, process the audio
+                if silent_frames > int(self.rate / self.chunk * silence_duration) and total_frames > int(self.rate / self.chunk * 0.5):
+                    # We have a complete phrase, process it
+                    if len(frames) > 0:
+                        # Save the accumulated frames
+                        wf = wave.open("temp_phrase.wav", 'wb')
+                        wf.setnchannels(self.channels)
+                        wf.setsampwidth(self.audio.get_sample_size(self.format))
+                        wf.setframerate(self.rate)
+                        wf.writeframes(b''.join(frames))
+                        wf.close()
+
+                        # Transcribe and call callback
+                        if self.client:
+                            text = self.transcribe_audio_api("temp_phrase.wav")
+                        else:
+                            text = self.simulate_transcription("temp_phrase.wav")
+
+                        if text.strip():  # Only call callback if there's text
+                            callback_func(text)
+
+                        # Clean up and reset
+                        if os.path.exists("temp_phrase.wav"):
+                            os.remove("temp_phrase.wav")
+
+                        frames = []
+                        total_frames = 0
+                        silent_frames = 0
+
+        except KeyboardInterrupt:
+            print("\nStopping continuous listening...")
+        finally:
+            stream.stop_stream()
+            stream.close()
+
+def command_callback(transcribed_text):
+    """Callback function for processed commands"""
+    print(f"Recognized: {transcribed_text}")
+    # Here you would process the command for robot control
+    # For example, parse "move forward one meter" into robot actions
+
+def main():
+    # Initialize transcriber
+    # If you have an OpenAI API key, provide it here
+    transcriber = WhisperTranscriber()  # api_key="your-api-key-here"
+
+    print("Whisper Transcriber Ready")
+    print("1. Press Enter to record a single command")
+    print("2. Type 'listen' to start continuous listening")
+    print("3. Type 'quit' to exit")
+
+    while True:
+        user_input = input("\nEnter command: ").strip().lower()
+
+        if user_input == "quit":
+            break
+        elif user_input == "listen":
+            print("Starting continuous listening...")
+            transcriber.continuous_listening(command_callback)
+        else:
+            # Single transcription
+            print("Say your command now...")
+            text = transcriber.transcribe_from_microphone()
+            print(f"Transcribed: {text}")
+            command_callback(text)
+
+if __name__ == "__main__":
+    main()

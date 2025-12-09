@@ -1,0 +1,371 @@
+---
+title: "LLM Action Planning for Robotics"
+sidebar_label: "LLM Action Planning"
+sidebar_position: 2
+description: "Learn to use Large Language Models for converting natural language commands to robot actions"
+keywords: [llm, action planning, natural language, robotics, openai, groq]
+---
+
+# LLM Action Planning for Robotics
+
+## Introduction
+
+Large Language Models (LLMs) can serve as powerful action planners for robotics, translating natural language commands into structured robot actions. In this lesson, you'll learn to use LLMs like GPT or Groq to parse human commands and generate executable robot actions.
+
+## Key Concepts
+
+### Natural Language Understanding
+LLMs can interpret complex commands by:
+- **Intent Recognition**: Understanding what the user wants to achieve
+- **Entity Extraction**: Identifying objects, locations, and parameters
+- **Action Sequencing**: Breaking complex commands into step-by-step actions
+- **Context Awareness**: Understanding the current robot state and environment
+
+### Action Planning Pipeline
+The process from command to action:
+1. **Command Input**: Natural language command from user
+2. **LLM Processing**: Parse command and extract relevant information
+3. **Action Generation**: Create structured action plan
+4. **Validation**: Ensure actions are safe and executable
+5. **Execution**: Execute actions on the robot
+
+## Hands-On Lab: LLM Action Planning System
+
+Let's create a system that converts natural language commands to robot actions using an LLM.
+
+### LLM Action Planning Implementation
+
+```python title="code-examples/vla-module/llm_action_planner.py"
+import openai
+from openai import OpenAI
+import json
+import time
+from typing import Dict, List, Any, Optional
+
+class LLMActionPlanner:
+    def __init__(self, api_key: str = None, model: str = "gpt-3.5-turbo", provider: str = "openai"):
+        """
+        Initialize LLM Action Planner
+        :param api_key: API key for the LLM service
+        :param model: Model to use for action planning
+        :param provider: LLM provider (openai, groq, etc.)
+        """
+        if provider == "openai":
+            self.client = OpenAI(api_key=api_key)
+            self.model = model
+        elif provider == "groq":
+            # Using OpenAI-compatible interface for Groq
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1"
+            )
+            self.model = model if model in ["llama3-70b-8192", "llama2-70b-4096"] else "llama3-70b-8192"
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
+
+        self.provider = provider
+
+        # Define the robot action schema
+        self.action_schema = {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action_type": {
+                                "type": "string",
+                                "enum": ["move", "rotate", "grip", "release", "speak", "wait", "navigate", "find_object"]
+                            },
+                            "parameters": {
+                                "type": "object",
+                                "description": "Action-specific parameters"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Human-readable description of the action"
+                            }
+                        },
+                        "required": ["action_type", "parameters", "description"]
+                    }
+                }
+            },
+            "required": ["actions"]
+        }
+
+    def plan_actions(self, command: str, robot_state: Dict = None) -> Optional[Dict]:
+        """
+        Plan actions based on natural language command
+        :param command: Natural language command from user
+        :param robot_state: Current state of the robot (optional)
+        :return: Structured action plan or None if planning failed
+        """
+        if robot_state is None:
+            robot_state = {"position": [0, 0, 0], "orientation": [0, 0, 0, 1], "gripper": "open"}
+
+        # Create the prompt for the LLM
+        prompt = f"""
+        You are a robot action planner. Convert the following natural language command into a sequence of structured robot actions.
+
+        Robot capabilities:
+        - move: Move to a position [x, y, z] in meters
+        - rotate: Rotate to an orientation [roll, pitch, yaw] in radians
+        - grip: Grip an object
+        - release: Release an object
+        - speak: Speak a message
+        - wait: Wait for a specified time in seconds
+        - navigate: Navigate to a named location
+        - find_object: Find an object by name or description
+
+        Current robot state:
+        - Position: {robot_state['position']}
+        - Orientation: {robot_state['orientation']}
+        - Gripper: {robot_state['gripper']}
+
+        Command: "{command}"
+
+        Respond with a JSON object containing an 'actions' array with the planned actions. Each action should have:
+        - action_type: The type of action
+        - parameters: Action-specific parameters
+        - description: Human-readable description
+
+        Example response format:
+        {{
+            "actions": [
+                {{
+                    "action_type": "navigate",
+                    "parameters": {{"location": "kitchen"}},
+                    "description": "Navigate to the kitchen"
+                }},
+                {{
+                    "action_type": "find_object",
+                    "parameters": {{"object": "red cup"}},
+                    "description": "Look for a red cup"
+                }}
+            ]
+        }}
+        """
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a robot action planner. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,  # Low temperature for consistent outputs
+                response_format={"type": "json_object"}  # Force JSON response
+            )
+
+            # Parse the response
+            response_text = response.choices[0].message.content
+            action_plan = json.loads(response_text)
+
+            return action_plan
+
+        except Exception as e:
+            print(f"Error planning actions: {e}")
+            return None
+
+    def execute_action_plan(self, action_plan: Dict, robot_interface) -> bool:
+        """
+        Execute the planned actions on the robot
+        :param action_plan: The action plan generated by plan_actions
+        :param robot_interface: Interface to control the robot
+        :return: True if all actions executed successfully, False otherwise
+        """
+        if not action_plan or 'actions' not in action_plan:
+            print("No valid action plan to execute")
+            return False
+
+        actions = action_plan['actions']
+        print(f"Executing {len(actions)} actions...")
+
+        for i, action in enumerate(actions):
+            print(f"Executing action {i+1}/{len(actions)}: {action['description']}")
+
+            try:
+                # Execute the action based on its type
+                success = self._execute_single_action(action, robot_interface)
+                if not success:
+                    print(f"Action {i+1} failed: {action['description']}")
+                    return False
+
+                print(f"Action {i+1} completed successfully")
+
+            except Exception as e:
+                print(f"Error executing action {i+1}: {e}")
+                return False
+
+        print("All actions completed successfully!")
+        return True
+
+    def _execute_single_action(self, action: Dict, robot_interface) -> bool:
+        """
+        Execute a single action on the robot
+        :param action: The action to execute
+        :param robot_interface: Interface to control the robot
+        :return: True if successful, False otherwise
+        """
+        action_type = action['action_type']
+        parameters = action['parameters']
+
+        if action_type == "move":
+            # Move to position [x, y, z]
+            x, y, z = parameters.get('position', [0, 0, 0])
+            return robot_interface.move_to_position(x, y, z)
+
+        elif action_type == "rotate":
+            # Rotate to orientation [roll, pitch, yaw]
+            roll, pitch, yaw = parameters.get('orientation', [0, 0, 0])
+            return robot_interface.rotate_to(roll, pitch, yaw)
+
+        elif action_type == "grip":
+            return robot_interface.grip()
+
+        elif action_type == "release":
+            return robot_interface.release()
+
+        elif action_type == "speak":
+            message = parameters.get('message', 'Hello')
+            return robot_interface.speak(message)
+
+        elif action_type == "wait":
+            duration = parameters.get('duration', 1.0)
+            time.sleep(duration)
+            return True
+
+        elif action_type == "navigate":
+            location = parameters.get('location', 'default')
+            return robot_interface.navigate_to(location)
+
+        elif action_type == "find_object":
+            object_name = parameters.get('object', 'unknown')
+            return robot_interface.find_object(object_name)
+
+        else:
+            print(f"Unknown action type: {action_type}")
+            return False
+
+    def validate_action_plan(self, action_plan: Dict) -> List[str]:
+        """
+        Validate the action plan for potential issues
+        :param action_plan: The action plan to validate
+        :return: List of validation issues (empty if valid)
+        """
+        issues = []
+
+        if not action_plan or 'actions' not in action_plan:
+            issues.append("Action plan is empty or malformed")
+            return issues
+
+        actions = action_plan['actions']
+
+        for i, action in enumerate(actions):
+            if 'action_type' not in action:
+                issues.append(f"Action {i+1}: Missing action_type")
+                continue
+
+            if 'parameters' not in action:
+                issues.append(f"Action {i+1}: Missing parameters for {action['action_type']}")
+                continue
+
+            # Check for specific parameter requirements
+            action_type = action['action_type']
+            if action_type in ['move', 'navigate'] and 'position' not in action['parameters']:
+                issues.append(f"Action {i+1}: {action_type} requires 'position' parameter")
+
+        return issues
+
+# Mock robot interface for testing
+class MockRobotInterface:
+    def __init__(self):
+        self.position = [0, 0, 0]
+        self.orientation = [0, 0, 0, 1]  # [x, y, z, w] quaternion
+        self.gripper_state = "open"
+
+    def move_to_position(self, x, y, z):
+        self.position = [x, y, z]
+        print(f"Moved to position: [{x}, {y}, {z}]")
+        return True
+
+    def rotate_to(self, roll, pitch, yaw):
+        # Simplified: just store the Euler angles
+        self.orientation = [roll, pitch, yaw]
+        print(f"Rotated to: [{roll}, {pitch}, {yaw}]")
+        return True
+
+    def grip(self):
+        self.gripper_state = "closed"
+        print("Gripper closed")
+        return True
+
+    def release(self):
+        self.gripper_state = "open"
+        print("Gripper opened")
+        return True
+
+    def speak(self, message):
+        print(f"Robot says: {message}")
+        return True
+
+    def navigate_to(self, location):
+        print(f"Navigating to: {location}")
+        return True
+
+    def find_object(self, object_name):
+        print(f"Looking for: {object_name}")
+        # Simulate finding the object
+        import random
+        return random.choice([True, True, True, True, False])  # 80% success rate
+
+def main():
+    # Initialize the planner
+    # Note: In a real implementation, you would provide your API key
+    planner = LLMActionPlanner()  # api_key="your-api-key", provider="openai")
+
+    # Create a mock robot interface for testing
+    robot = MockRobotInterface()
+
+    print("LLM Action Planner Ready")
+    print("Enter natural language commands for the robot (or 'quit' to exit):")
+
+    while True:
+        command = input("\nCommand: ").strip()
+
+        if command.lower() == 'quit':
+            break
+
+        if not command:
+            continue
+
+        print(f"Processing command: '{command}'")
+
+        # Plan actions based on the command
+        action_plan = planner.plan_actions(command, {
+            "position": robot.position,
+            "orientation": robot.orientation,
+            "gripper": robot.gripper_state
+        })
+
+        if action_plan:
+            # Validate the action plan
+            issues = planner.validate_action_plan(action_plan)
+            if issues:
+                print("Validation issues found:")
+                for issue in issues:
+                    print(f"  - {issue}")
+                continue
+
+            # Execute the action plan
+            success = planner.execute_action_plan(action_plan, robot)
+            if success:
+                print("Command executed successfully!")
+            else:
+                print("Command execution failed!")
+        else:
+            print("Failed to generate action plan for the command.")
+
+if __name__ == "__main__":
+    main()

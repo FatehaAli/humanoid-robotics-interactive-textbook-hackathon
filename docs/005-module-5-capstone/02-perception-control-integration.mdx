@@ -1,0 +1,253 @@
+---
+title: "Capstone: Perception & Control Pipeline Integration"
+sidebar_label: "Perception & Control Integration"
+sidebar_position: 2
+description: "Integrate perception and control systems for autonomous humanoid navigation and interaction"
+keywords: [capstone, perception, control, navigation, integration, robotics]
+---
+
+# Capstone: Perception & Control Pipeline Integration
+
+## Introduction
+
+In this lesson, you'll integrate the perception and control systems to create an autonomous humanoid robot capable of navigating environments and interacting with objects. This combines your knowledge of sensor processing, navigation, and control systems from previous modules.
+
+## Perception Pipeline
+
+The perception pipeline processes sensor data to understand the environment:
+
+### Sensor Fusion
+- **Camera Data**: Visual information for object recognition and scene understanding
+- **LiDAR Data**: Precise distance measurements for mapping and obstacle detection
+- **IMU Data**: Inertial information for robot state estimation
+- **Joint Encoders**: Robot configuration information
+
+### Object Detection and Tracking
+- **Semantic Segmentation**: Identify object classes in camera images
+- **Instance Segmentation**: Distinguish individual object instances
+- **Object Tracking**: Follow objects across multiple frames
+- **3D Object Detection**: Localize objects in 3D space
+
+## Hands-On Lab: Integrated Perception and Control
+
+Let's create a perception and control system that integrates all components.
+
+### Perception and Control Node
+
+```python title="code-examples/capstone-module/perception_control_integration.py"
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile
+from rclpy.action import ActionClient
+
+from sensor_msgs.msg import Image, LaserScan, Imu, JointState
+from geometry_msgs.msg import Twist, PoseStamped
+from nav_msgs.msg import Odometry
+from std_msgs.msg import String
+from visualization_msgs.msg import MarkerArray
+
+import cv2
+from cv_bridge import CvBridge
+import numpy as np
+from tf2_ros import TransformListener, Buffer
+import tf2_geometry_msgs
+
+class PerceptionControlIntegration(Node):
+    def __init__(self):
+        super().__init__('perception_control_integration')
+
+        # QoS profile for sensor data
+        qos_profile = QoSProfile(depth=10)
+
+        # Publishers
+        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.viz_pub = self.create_publisher(MarkerArray, '/visualization_marker_array', 10)
+
+        # Subscribers
+        self.image_sub = self.create_subscription(
+            Image, '/camera/image_raw', self.image_callback, qos_profile)
+        self.scan_sub = self.create_subscription(
+            LaserScan, '/scan', self.scan_callback, qos_profile)
+        self.imu_sub = self.create_subscription(
+            Imu, '/imu/data', self.imu_callback, qos_profile)
+        self.joint_sub = self.create_subscription(
+            JointState, '/joint_states', self.joint_callback, qos_profile)
+        self.odom_sub = self.create_subscription(
+            Odometry, '/odom', self.odom_callback, qos_profile)
+
+        # TF listener for coordinate transforms
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # Internal state
+        self.bridge = CvBridge()
+        self.latest_image = None
+        self.latest_scan = None
+        self.latest_imu = None
+        self.latest_joints = None
+        self.robot_pose = None
+
+        # Perception parameters
+        self.obstacle_threshold = 1.0  # meters
+        self.target_object = "red_cube"
+        self.navigation_goal = None
+
+        # Control parameters
+        self.linear_speed = 0.5
+        self.angular_speed = 0.8
+        self.avoiding_obstacle = False
+
+        # Control timer
+        self.control_timer = self.create_timer(0.1, self.control_loop)
+
+        self.get_logger().info('Perception Control Integration initialized')
+
+    def image_callback(self, msg):
+        """Process camera image for object detection"""
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            self.latest_image = cv_image
+
+            # Simple color-based object detection (red cube)
+            hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+
+            # Define range for red color
+            lower_red1 = np.array([0, 50, 50])
+            upper_red1 = np.array([10, 255, 255])
+            lower_red2 = np.array([170, 50, 50])
+            upper_red2 = np.array([180, 255, 255])
+
+            mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+            mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+            mask = mask1 + mask2
+
+            # Find contours
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            if contours:
+                # Find the largest contour
+                largest_contour = max(contours, key=cv2.contourArea)
+                if cv2.contourArea(largest_contour) > 500:  # Minimum area threshold
+                    # Calculate center of the object
+                    M = cv2.moments(largest_contour)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+
+                        # Convert image coordinates to world coordinates
+                        # This is a simplified version - in practice you'd use camera calibration
+                        self.get_logger().info(f'Detected {self.target_object} at image coordinates ({cx}, {cy})')
+
+                        # Set navigation goal based on detected object
+                        self.set_navigation_goal_from_image(cx, cy, cv_image.shape)
+
+        except Exception as e:
+            self.get_logger().error(f'Error processing image: {e}')
+
+    def scan_callback(self, msg):
+        """Process laser scan for obstacle detection"""
+        self.latest_scan = msg
+
+        # Check for obstacles in front (±30 degrees)
+        front_ranges = msg.ranges[330:390]  # Assuming 720-point scan
+        front_ranges = [r for r in front_ranges if not np.isnan(r) and r > 0]
+
+        if front_ranges:
+            min_distance = min(front_ranges)
+            if min_distance < self.obstacle_threshold:
+                self.avoiding_obstacle = True
+                self.get_logger().warn(f'Obstacle detected! Distance: {min_distance:.2f}m')
+            else:
+                self.avoiding_obstacle = False
+
+    def imu_callback(self, msg):
+        """Process IMU data for robot state estimation"""
+        self.latest_imu = msg
+
+    def joint_callback(self, msg):
+        """Process joint state data"""
+        self.latest_joints = msg
+
+    def odom_callback(self, msg):
+        """Process odometry data for robot pose"""
+        self.robot_pose = msg.pose.pose
+
+    def set_navigation_goal_from_image(self, img_x, img_y, img_shape):
+        """Convert image coordinates to navigation goal"""
+        # Simplified conversion - in practice you'd use camera calibration
+        # Convert image coordinates to angular offsets
+        center_x = img_shape[1] / 2
+        center_y = img_shape[0] / 2
+
+        delta_x = img_x - center_x
+        delta_y = img_y - center_y
+
+        # Convert to angular offsets (simplified)
+        fov_x = 1.047  # 60 degrees in radians (typical camera FOV)
+        angle_x = (delta_x / center_x) * (fov_x / 2)
+
+        # Set goal relative to current position (simplified)
+        if self.robot_pose:
+            goal = PoseStamped()
+            goal.header.frame_id = 'map'
+            goal.header.stamp = self.get_clock().now().to_msg()
+
+            # Move forward and turn toward the object
+            goal.pose.position.x = self.robot_pose.position.x + 2.0  # 2m forward
+            goal.pose.position.y = self.robot_pose.position.y + angle_x * 2.0  # Adjust laterally based on angle
+            goal.pose.position.z = 0.0
+
+            # Simple orientation toward the object
+            goal.pose.orientation.w = 1.0  # Keep simple for now
+
+            self.navigation_goal = goal
+            self.get_logger().info(f'Set navigation goal toward detected object: ({goal.pose.position.x:.2f}, {goal.pose.position.y:.2f})')
+
+    def control_loop(self):
+        """Main control loop combining perception and action"""
+        cmd_vel = Twist()
+
+        if self.avoiding_obstacle:
+            # Obstacle avoidance behavior
+            cmd_vel.linear.x = 0.0
+            cmd_vel.angular.z = self.angular_speed  # Turn away from obstacle
+            self.get_logger().info('Executing obstacle avoidance')
+        elif self.navigation_goal:
+            # Navigation toward goal
+            cmd_vel.linear.x = self.linear_speed
+            cmd_vel.angular.z = 0.1  # Gentle turn correction
+            self.get_logger().info('Navigating toward goal')
+        else:
+            # Default exploration behavior
+            cmd_vel.linear.x = self.linear_speed
+            cmd_vel.angular.z = 0.05  # Gentle exploration turn
+            self.get_logger().info('Exploring environment')
+
+        # Publish velocity command
+        self.cmd_vel_pub.publish(cmd_vel)
+
+        # Log system state
+        if self.latest_scan:
+            ranges = [r for r in self.latest_scan.ranges if not np.isnan(r) and r > 0]
+            if ranges:
+                min_range = min(ranges) if ranges else float('inf')
+                self.get_logger().info(f'Min obstacle distance: {min_range:.2f}m')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = PerceptionControlIntegration()
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info('Shutting down perception control integration')
+    finally:
+        # Stop robot on shutdown
+        stop_msg = Twist()
+        node.cmd_vel_pub.publish(stop_msg)
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

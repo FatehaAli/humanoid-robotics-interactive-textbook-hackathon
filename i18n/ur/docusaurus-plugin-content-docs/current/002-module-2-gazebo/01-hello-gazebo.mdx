@@ -1,0 +1,175 @@
+---
+title: "Hello Gazebo: Launching Your First Robot Simulation"
+sidebar_label: "Hello Gazebo"
+sidebar_position: 1
+description: "Get started with Gazebo simulation by launching your first robot in a physics-based environment"
+keywords: [gazebo, simulation, physics, robot, launch]
+---
+
+# Hello Gazebo: Launching Your First Robot Simulation
+
+## Introduction
+
+Welcome to Gazebo, the physics-based simulation environment that brings your robots to life! Gazebo provides realistic simulation of robots in complex environments with accurate physics, sensors, and rendering. In this lesson, you'll learn to launch your first robot simulation and understand the core concepts of Gazebo simulation.
+
+## What is Gazebo?
+
+Gazebo is a 3D simulation environment that provides:
+- **Physics Simulation**: Accurate simulation of rigid body dynamics, collisions, and contacts
+- **Sensor Simulation**: Realistic models for cameras, LiDAR, IMU, and other sensors
+- **Environment Simulation**: Complex environments with lighting, weather, and terrain
+- **Robot Simulation**: Support for complex robot models with multiple joints and actuators
+
+## Core Concepts
+
+### Worlds
+A world file defines the environment where your robot operates. It includes:
+- Physics properties (gravity, air resistance)
+- Static objects and obstacles
+- Lighting and visual properties
+- Ground plane and terrain
+
+### Models
+Models represent objects in the simulation, including:
+- Robots (your own or from the Gazebo model database)
+- Objects (furniture, obstacles, props)
+- Sensors and actuators
+
+### Plugins
+Plugins extend Gazebo functionality:
+- **Sensor plugins**: Camera, LiDAR, IMU, etc.
+- **Controller plugins**: Joint controllers, grippers
+- **Physics plugins**: Custom physics behaviors
+
+## Hands-On Lab: Launching Your First Robot
+
+Let's create a simple Gazebo world and launch a robot into it.
+
+### Simple World Definition
+
+```xml title="code-examples/gazebo-module/simple.world"
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="simple_world">
+    <!-- Physics Engine -->
+    <physics type="ode">
+      <gravity>0 0 -9.8</gravity>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Ground Plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Lighting -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Simple Box Obstacle -->
+    <model name="box_obstacle">
+      <pose>2 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <inertial>
+          <mass>1.0</mass>
+          <inertia>
+            <ixx>0.166667</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.166667</iyy>
+            <iyz>0</iyz>
+            <izz>0.166667</izz>
+          </inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- Robot will be spawned here -->
+  </world>
+</sdf>
+```
+
+### Launch File for Gazebo Simulation
+
+```python title="code-examples/gazebo-module/gazebo_launch.py"
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
+from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
+import os
+
+def generate_launch_description():
+    # Declare launch arguments
+    world_arg = DeclareLaunchArgument(
+        'world',
+        default_value='code-examples/gazebo-module/simple.world',
+        description='Choose one of the world files from `/path/to/worlds`'
+    )
+
+    # Get Gazebo launch file from ros_gz_sim package
+    gz_sim_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('ros_gz_sim'),
+                'launch',
+                'gz_sim.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'gz_args': ['-r ', LaunchConfiguration('world')]
+        }.items()
+    )
+
+    # Robot State Publisher node
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        parameters=[{
+            'robot_description': open('code-examples/ros2-module/simple_humanoid.urdf').read()
+        }]
+    )
+
+    # Spawn entity node to place robot in simulation
+    spawn_entity = Node(
+        package='ros_gz_sim',
+        executable='create',
+        arguments=[
+            '-name', 'simple_humanoid',
+            '-topic', 'robot_description',
+            '-x', '0.0',
+            '-y', '0.0',
+            '-z', '1.0'
+        ],
+        output='screen'
+    )
+
+    return LaunchDescription([
+        world_arg,
+        gz_sim_launch,
+        robot_state_publisher,
+        spawn_entity
+    ])

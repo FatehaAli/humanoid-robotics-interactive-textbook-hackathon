@@ -1,0 +1,11 @@
+{
+  "label": "Module 4: VLA Pipeline",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "title": "VLA Pipeline",
+    "description": "Voice-Language-Action system: Whisper, LLMs, and ROS2 integration",
+    "slug": "/category/vla-module"
+  },
+  "collapsed": false
+}
